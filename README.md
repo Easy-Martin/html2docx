@@ -1,4 +1,4 @@
-# html2docx
+# html-convert-docx
 
 一个将 HTML 字符串转换为 Word (`.docx`) 文件的轻量库，基于 [`docx`](https://www.npmjs.com/package/docx)。适用于浏览器环境，将常见 HTML 标签与部分样式映射为 Word 文档内容。
 
@@ -11,16 +11,16 @@
 
 ## 安装
 ```bash
-npm i html2docx
+npm i html-convert-docx
 # 或者
-pnpm add html2docx
+pnpm add html-convert-docx
 ```
 
 > 依赖 `docx` 已在本包内声明，无需单独安装。
 
 ## 快速开始（浏览器）
 ```ts
-import htmlToDocx from 'html2docx';
+import htmlToDocx from 'html-convert-docx';
 
 const html = `
   <h1 style="text-align:center">示例文档</h1>

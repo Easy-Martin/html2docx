@@ -1,5 +1,5 @@
 {
-  "name": "html_to_docx",
+  "name": "html-convert-docx",
   "version": "0.0.1",
   "description": "A html transform to docx file plugin",
   "main": "dist/index.js",
