@@ -1,6 +1,6 @@
-import { Document as DocumentDocx, Paragraph, TextRun, HeadingLevel, ImageRun, Packer, TableCell, TableRow, Table, LineRuleType } from 'docx';
-import { type IBorderOptions } from 'docx';
-import { rgbToHex, UnitConverter } from './utils';
+import { Document as DocumentDocx, Paragraph, TextRun, HeadingLevel, ImageRun, Packer, TableCell, TableRow, Table, LineRuleType } from "docx";
+import { type IBorderOptions } from "docx";
+import { rgbToHex, UnitConverter } from "./utils";
 
 /**
  * 将HTML转换为Word文档
@@ -10,7 +10,7 @@ import { rgbToHex, UnitConverter } from './utils';
 async function htmlToDocx(html: string): Promise<Blob> {
   // 创建DOM解析器
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc = parser.parseFromString(html, "text/html");
 
   // 创建Word文档
 
@@ -20,17 +20,17 @@ async function htmlToDocx(html: string): Promise<Blob> {
 
   for (let i = 0; i < body.childNodes.length; i++) {
     const node = body.childNodes[i] as HTMLElement;
-    if (node.nodeName === 'P') {
+    if (node.nodeName === "P") {
       children.push(await createParagraphNode(node));
     }
     if (node.nodeName.match(/^H[1-6]$/)) {
       children.push(await createHeadingNode(node));
     }
-    if (node.nodeName === 'UL' || node.nodeName === 'OL') {
+    if (node.nodeName === "UL" || node.nodeName === "OL") {
       const list = await createListNode(node);
       children.push(...list);
     }
-    if (node.nodeName === 'TABLE') {
+    if (node.nodeName === "TABLE") {
       const table = await createTableNode(node);
       children.push(table);
     }
@@ -40,14 +40,8 @@ async function htmlToDocx(html: string): Promise<Blob> {
     sections: [{ children: children as any }],
     numbering: {
       config: [
-        {
-          reference: 'bullet-points',
-          levels: [{ level: 0, format: 'bullet', text: '•', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
-        },
-        {
-          reference: 'numbered-list',
-          levels: [{ level: 0, format: 'decimal', text: '%1.', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
-        },
+        { reference: "bullet-points", levels: [{ level: 0, format: "bullet", text: "•", style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }] },
+        { reference: "numbered-list", levels: [{ level: 0, format: "decimal", text: "%1.", style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }] },
       ],
     },
   });
@@ -73,14 +67,14 @@ function getTextStyle(node: HTMLElement, childNode?: HTMLElement): { [key: strin
   const style = {
     color: color ? rgbToHex(color) : undefined,
     size: fontSize ? parseInt(fontSize) * 1.6 : 16,
-    bold: node.style?.fontWeight === 'bold' || childNode?.style?.fontWeight === 'bold',
-    italics: node.style?.fontStyle === 'italic' || childNode?.style?.fontStyle === 'italic',
-    underline: node.style?.textDecoration === 'underline' || childNode?.style?.textDecoration === 'underline',
+    bold: node.style?.fontWeight === "bold" || childNode?.style?.fontWeight === "bold",
+    italics: node.style?.fontStyle === "italic" || childNode?.style?.fontStyle === "italic",
+    underline: node.style?.textDecoration === "underline" || childNode?.style?.textDecoration === "underline",
     font: node.style?.fontFamily || childNode?.style?.fontFamily,
     alignment: node.style?.textAlign,
-    indent: { firstLine: parseInt(indent || '0'), start: 0, left: 0 },
+    indent: { firstLine: parseInt(indent || "0"), start: 0, left: 0 },
     spacing: lineHeight
-      ? lineHeight.type === 'multiple'
+      ? lineHeight.type === "multiple"
         ? { line: lineHeight.value * 240 } // 240 twips = 12pt，作为基准值
         : { line: lineHeight.value, lineRule: LineRuleType.EXACT }
       : undefined,
@@ -101,23 +95,23 @@ async function createParagraphNode(node: HTMLElement, paragraph?: Paragraph): Pr
 
   for (const child of Array.from(node.childNodes)) {
     switch (child.nodeName) {
-      case 'SPAN':
+      case "SPAN":
         const childStyle = getTextStyle(child as HTMLElement, node);
         paragraph.addChildElement(await createChildNode(child as HTMLElement, { ...style, ...childStyle }));
         break;
-      case 'TEXT':
-        if (child.textContent !== '') {
+      case "TEXT":
+        if (child.textContent !== "") {
           paragraph.addChildElement(await createTextNode(child as HTMLElement, style));
         }
         break;
-      case 'STRONG':
+      case "STRONG":
         paragraph.addChildElement(await createTextNode(child as HTMLElement, { ...style, bold: true }));
         break;
-      case 'IMG':
+      case "IMG":
         paragraph.addChildElement(await createImageNode(child as HTMLImageElement));
         break;
-      case 'BR':
-        paragraph.addChildElement(new TextRun({ text: '\n' }));
+      case "BR":
+        paragraph.addChildElement(new TextRun({ text: "\n" }));
         break;
       default:
         paragraph.addChildElement(await createTextNode(child as HTMLElement, style));
@@ -134,17 +128,17 @@ async function createParagraphNode(node: HTMLElement, paragraph?: Paragraph): Pr
  * @returns
  */
 async function createChildNode(node: HTMLElement, style: { [key: string]: any } = {}): Promise<TextRun | ImageRun> {
-  let childNode: TextRun | ImageRun = new TextRun({ text: '' });
+  let childNode: TextRun | ImageRun = new TextRun({ text: "" });
   for (const child of Array.from(node.childNodes)) {
     switch (child.nodeName) {
-      case 'STRONG':
+      case "STRONG":
         childNode = await createChildNode(child as HTMLElement, { ...style, bold: true });
         break;
-      case 'IMG':
+      case "IMG":
         childNode = await createImageNode(child as HTMLImageElement);
         break;
-      case 'BR':
-        childNode = new TextRun({ text: '\n' });
+      case "BR":
+        childNode = new TextRun({ text: "\n" });
         break;
       default:
         childNode = await createTextNode(child as HTMLElement, style);
@@ -160,28 +154,28 @@ async function createChildNode(node: HTMLElement, style: { [key: string]: any } 
  */
 async function createTableNode(node: HTMLElement): Promise<Table> {
   const rows = [];
-  for (const tr of Array.from(node.querySelectorAll('tr'))) {
+  for (const tr of Array.from(node.querySelectorAll("tr"))) {
     const cells = [] as TableCell[];
-    for (const td of Array.from(tr.querySelectorAll('td, th'))) {
+    for (const td of Array.from(tr.querySelectorAll("td, th"))) {
       const cellChildren = [];
       for (const child of Array.from(td.childNodes)) {
-        cellChildren.push(new Paragraph({ spacing: { line: 20 * 20 }, indent: { firstLine: 20 }, children: [new TextRun({ text: child.textContent || '', size: 18 })] }));
+        cellChildren.push(new Paragraph({ spacing: { line: 20 * 20 }, indent: { firstLine: 20 }, children: [new TextRun({ text: child.textContent || "", size: 18 })] }));
       }
-      const size = td.getAttribute('width') && td.getAttribute('width') !== 'auto' ? parseInt(td.getAttribute('width') as string) : 100;
+      const size = td.getAttribute("width") && td.getAttribute("width") !== "auto" ? parseInt(td.getAttribute("width") as string) : 100;
       // 处理单元格边框
-      const border = { size: 1, color: '#000000', style: 'single' } as IBorderOptions;
+      const border = { size: 1, color: "#000000", style: "single" } as IBorderOptions;
       const cell = new TableCell({
         children: cellChildren as any,
-        columnSpan: td.getAttribute('colspan') ? parseInt(td.getAttribute('colspan') as string) : undefined,
-        rowSpan: td.getAttribute('rowspan') ? parseInt(td.getAttribute('rowspan') as string) : undefined,
-        width: { size, type: 'auto' },
+        columnSpan: td.getAttribute("colspan") ? parseInt(td.getAttribute("colspan") as string) : undefined,
+        rowSpan: td.getAttribute("rowspan") ? parseInt(td.getAttribute("rowspan") as string) : undefined,
+        width: { size, type: "auto" },
         borders: { top: border, bottom: border, left: border, right: border },
       });
       cells.push(cell);
     }
     rows.push(new TableRow({ children: cells }));
   }
-  return new Table({ rows, width: { size: 100, type: 'pct' } });
+  return new Table({ rows, width: { size: 100, type: "pct" } });
 }
 
 /**
@@ -192,8 +186,8 @@ async function createTableNode(node: HTMLElement): Promise<Table> {
 async function createListNode(node: HTMLElement) {
   const list = [];
   for (const li of Array.from(node.childNodes)) {
-    if (li.textContent !== '') {
-      const numbering = li.textContent === '\n' ? undefined : { reference: node.nodeName === 'UL' ? 'bullet-points' : 'numbered-list', level: 0 };
+    if (li.textContent !== "") {
+      const numbering = li.textContent === "\n" ? undefined : { reference: node.nodeName === "UL" ? "bullet-points" : "numbered-list", level: 0 };
       const listItem = await createParagraphNode(li as HTMLElement, new Paragraph({ numbering }));
       list.push(listItem);
     }
@@ -207,28 +201,28 @@ async function createListNode(node: HTMLElement) {
  * @returns {Promise<ImageRun>} - 创建的文本对象
  */
 async function createImageNode(imgNode: HTMLImageElement): Promise<ImageRun> {
-  const imagePath = imgNode.getAttribute('src') ?? '';
+  const imagePath = imgNode.getAttribute("src") ?? "";
   let imageData: any;
-  if (imagePath.startsWith('data:image')) {
+  if (imagePath.startsWith("data:image")) {
     // 处理base64图片
-    const base64Data = imagePath.split(',')[1];
+    const base64Data = imagePath.split(",")[1];
     // 将base64字符串转换为Uint8Array
-    imageData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    imageData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
   } else {
     // 处理普通URL图片
     imageData = await fetch(imagePath)
-      .then(res => res.blob())
-      .then(blob => blob.arrayBuffer())
-      .then(buffer => new Uint8Array(buffer))
-      .catch(e => {
+      .then((res) => res.blob())
+      .then((blob) => blob.arrayBuffer())
+      .then((buffer) => new Uint8Array(buffer))
+      .catch((e) => {
         console.error(e);
         return;
       });
   }
 
   // 获取图片宽度和高度
-  const width = parseInt(imgNode.getAttribute('width') ?? '650');
-  const height = parseInt(imgNode.getAttribute('height') ?? '280');
+  const width = parseInt(imgNode.getAttribute("width") ?? "650");
+  const height = parseInt(imgNode.getAttribute("height") ?? "280");
   // 处理图片，使用docx库中的ImageRun组件，需要将图片转换为Uint8Array或Blob对象，这里使用base64字符串作为示例，实际使用时需要根据实际情况进行处理
   return new ImageRun({ data: imageData, transformation: { width, height } } as any);
 }
@@ -256,7 +250,7 @@ async function createHeadingNode(node: HTMLElement): Promise<Paragraph> {
  */
 async function createTextNode(node: HTMLElement, style: ReturnType<typeof getTextStyle> = {} as ReturnType<typeof getTextStyle>): Promise<TextRun> {
   return new TextRun({
-    text: node.textContent || '',
+    text: node.textContent || "",
     font: style.font,
     size: style.size,
     color: style.color,

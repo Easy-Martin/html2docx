@@ -1,7 +1,7 @@
 {
-  "name": "html2docx",
+  "name": "html_to_docx",
   "version": "0.0.1",
-  "description": "A search and replace plugin for Tiptap editor",
+  "description": "A html transform to docx file plugin",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

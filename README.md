@@ -1,167 +1,98 @@
-# Tiptap 搜索替换插件
+# html2docx
 
-这是一个为 [Tiptap](https://tiptap.dev/) 编辑器开发的搜索和替换功能插件。该插件允许用户在 Tiptap 编辑器中搜索文本并进行替换操作。
+一个将 HTML 字符串转换为 Word (`.docx`) 文件的轻量库，基于 [`docx`](https://www.npmjs.com/package/docx)。适用于浏览器环境，将常见 HTML 标签与部分样式映射为 Word 文档内容。
 
-## 功能特点
-
-- 文本搜索功能
-- 查找下一个/上一个匹配项
-- 文本替换功能
-- 与 Tiptap 编辑器无缝集成
+## 特性
+- 支持标签：`p`、`h1`~`h6`、`ul/ol/li`、`table/tr/td/th`、`img`、`span`、`strong`、`br`、文本节点
+- 支持样式：颜色（`rgb(...)` 或 `#hex`）、字体大小（`px`）、加粗、斜体、下划线、字体、对齐、首行缩进、行高（数字/百分比/px/`normal`）
+- 列表：圆点符号 `•` 的无序列表与十进制的有序列表
+- 表格：支持 `colspan`、`rowspan`、`width` 属性，统一 1px 单线边框
+- 图片：支持 `data:image/*;base64,...` 与网络图片（`fetch`）
 
 ## 安装
-
-使用 npm:
-
 ```bash
-npm install tiptap_search_replace_plugin
+npm i html2docx
+# 或者
+pnpm add html2docx
 ```
 
-使用 yarn:
+> 依赖 `docx` 已在本包内声明，无需单独安装。
 
-```bash
-yarn add tiptap_search_replace_plugin
-```
+## 快速开始（浏览器）
+```ts
+import htmlToDocx from 'html2docx';
 
-使用 pnpm:
+const html = `
+  <h1 style="text-align:center">示例文档</h1>
+  <p style="text-indent:32px; line-height:1.6; color:rgb(34,34,34)">
+    这是一段包含 <strong>加粗</strong>、<span style="font-style:italic">斜体</span>、
+    <span style="text-decoration:underline">下划线</span> 的文本。
+    <br/>
+    下面是一个图片：
+    <img src="data:image/png;base64,...." width="320" height="180" />
+  </p>
+  <ul>
+    <li>项目一</li>
+    <li>项目二</li>
+  </ul>
+  <table>
+    <tr>
+      <th width="120">表头A</th>
+      <th width="180">表头B</th>
+    </tr>
+    <tr>
+      <td colspan="1">单元格1</td>
+      <td>单元格2</td>
+    </tr>
+  </table>
+`;
 
-```bash
-pnpm add tiptap_search_replace_plugin
-```
-
-## 使用方法
-
-### 基本用法
-
-```typescript
-import { Editor } from '@tiptap/core';
-import { SearchReplacePlugin } from 'tiptap_search_replace_plugin';
-
-const editor = new Editor({
-  extensions: [
-    // ... 其他扩展
-    SearchReplacePlugin,
-  ],
-  // ... 其他配置
-});
-
-// 打开查找替换面板
-editor.commands.openFindReplace();
-
-// 关闭查找替换面板
-editor.commands.closeFindReplace();
-
-// 切换查找替换面板
-editor.commands.toggleFindReplace();
-
-// 搜索文本
-editor.commands.find('要搜索的文本');
-
-// 查找下一个匹配项
-editor.commands.findNext();
-
-// 查找上一个匹配项
-editor.commands.findPrevious();
-
-// 替换当前匹配项
-editor.commands.replace('替换后的文本');
-
-// 替换所有匹配项
-editor.commands.replaceAll('替换后的文本');
-
+// 生成 Blob 并触发下载
+const blob = await htmlToDocx(html);
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'document.docx';
+a.click();
+URL.revokeObjectURL(url);
 ```
 
 ## API
+- `htmlToDocx(html: string): Promise<Blob>`
+  - 传入 HTML 字符串，返回生成的 `.docx` 文件 Blob（浏览器）。
 
-该插件提供以下命令：
+## 实现说明（简要）
+- 使用 `DOMParser` 解析 HTML 字符串，遍历 `body.childNodes`，将特定标签映射为 `docx` 的 `Paragraph`、`Table`、`ImageRun` 等对象。
+- 文本样式来自元素的 `style`：
+  - `color`：通过 `rgbToHex` 处理 `rgb(...)` 与 `#hex`
+  - `size`：解析 `font-size` 的 `px` 值，内部按 docx 需求进行换算
+  - `bold`/`italics`/`underline`/`font`/`alignment`
+  - `indent.firstLine`：来自 `text-indent`
+  - `spacing`（行高）：支持数字倍数、百分比、`px`、`normal`（按 1.2 倍解析），底层转换为 twips
+- 列表：为 `ul/ol` 配置 `numbering`，无序列表用 `•`，有序列表用十进制；每个 `li` 转为一个段落。
+- 表格：遍历 `tr`、`td/th`，支持 `colspan/rowspan/width`，统一设置四边 1px 单线边框，整体宽度 100%。
+- 图片：
+  - Base64：解析 `data:image/*;base64,...` 为 `Uint8Array`
+  - URL：通过 `fetch` 获取并转 `Uint8Array`，默认尺寸为 `width=650`、`height=280`，可通过属性覆盖
 
-- `find(text: string)`: 搜索指定文本
-- `findNext()`: 查找下一个匹配项
-- `findPrevious()`: 查找上一个匹配项
-- `replace(text: string)`: 替换当前匹配项
-- `replaceAll(text: string)`: 替换所有匹配项
-- `toggleFindReplace()`: 打开或关闭查找替换面板
-- `closeFindReplace()`: 关闭查找替换面板
-- `openFindReplace()`: 打开查找替换面板
+## 兼容性与限制
+- 首选浏览器环境：实现依赖 `DOMParser`、`fetch`，返回类型为 `Blob`。
+  - Node 环境需要自行提供 `DOMParser` 与 `fetch` 的 polyfill，并将打包方式改为 `Packer.toBuffer` 等。
+- 支持的标签与样式为常见子集，复杂嵌套/高级 CSS（如嵌套列表的层级样式、链接、行内复杂样式）可能无法完整映射。
+- 远程图片受跨域限制；请求失败时图片可能无法插入。
 
-## Style
+## 在你的项目中使用
+- 直接传入来自富文本编辑器（如 TipTap）或自定义模板生成的 HTML 字符串。
+- 通过内联样式（`style="..."`）提供颜色、字体大小、行高、对齐、首行缩进等信息，以获得更接近预期的 Word 样式。
 
-该插件没有默认的样式。你可以根据需要自定义样式,例如:
-
-```less
-.find-replace-highlight {
-  background-color: yellow;
-  &.find-replace-highlight-active {
-    background-color: orange;
-  }
-}
-```
-
-## 开发
-
-### 配置
-
-你可以通过 `openPanel` 选项自定义打开查找替换面板的快捷键。默认值为 `Mod-f`（即按下 `Ctrl+f` 或 `Cmd+f`）。
-
-```typescript
-const editor = new Editor({
-  extensions: [
-    // ... 其他扩展
-    SearchReplacePlugin.configure({
-      openPanel: 'Mod-f',
-    }),
-  ],
-  // ... 其他配置
-});
-```
-
-### 实例
-
-```typescript
-import { Editor } from '@tiptap/core';
-import { SearchReplacePlugin } from 'tiptap_search_replace_plugin';
-
-const editor = new Editor({
-  extensions: [
-    // ... 其他扩展
-    SearchReplacePlugin,
-  ],
-  // ... 其他配置
-});
-```
-
-### Event
-
-该插件触发以下事件：
-
-- `findReplace:toggleFindReplace(isOpen: boolean)`: 查找替换面板打开或关闭时触发
-
-你可以使用 `on` 方法监听这些事件，例如：
-
-```jsx
-useEffect(() => {
-  editor.on("findReplace:toggleFindReplace", (isOpen) => updateState({ open: isOpen }));
-  return () => {
-    editor.off("findReplace:toggleFindReplace");
-  };
-}, []);
-```
-
-
-
-### 构建项目
-
-```bash
-# 安装依赖
-pnpm install
-
-# 开发模式
-pnpm dev
-
-# 构建
-pnpm build
-```
+## 开发与构建
+- 脚本：
+  - `npm run dev`：TypeScript 监听编译
+  - `npm run build`：TypeScript 构建到 `dist`
+- TypeScript 配置：`lib` 目录为源码入口，输出到 `dist`
 
 ## 许可证
+- [MIT](./LICENSE)
 
-MIT
+## 致谢
+- 本项目使用了优秀的 [`docx`](https://www.npmjs.com/package/docx) 库来生成 Word 文档。
