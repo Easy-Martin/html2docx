@@ -1,0 +1,48 @@
+{
+  "name": "html2docx",
+  "version": "0.0.1",
+  "description": "A search and replace plugin for Tiptap editor",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Easy-Martin/html2docx.git"
+  },
+  "homepage": "https://github.com/Easy-Martin/html2docx.git",
+  "bugs": {
+    "url": "https://github.com/Easy-Martin/html2docx.git/issues"
+  },
+  "keywords": [
+    "tiptap",
+    "editor",
+    "search",
+    "replace",
+    "plugin"
+  ],
+  "author": "Huang Jingjing",
+  "license": "MIT",
+  "dependencies": {
+    "docx": "^9.5.1"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "rollup": "^4.52.4",
+    "rollup-plugin-dts": "^6.2.3",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3"
+  }
+}
