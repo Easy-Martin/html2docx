@@ -10,24 +10,24 @@ const utils_1 = require("./utils");
 async function htmlToDocx(html) {
     // 创建DOM解析器
     const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+    const doc = parser.parseFromString(html, "text/html");
     // 创建Word文档
     // 遍历HTML节点并转换为Word元素
     const body = doc.body;
     const children = [];
     for (let i = 0; i < body.childNodes.length; i++) {
         const node = body.childNodes[i];
-        if (node.nodeName === 'P') {
+        if (node.nodeName === "P") {
             children.push(await createParagraphNode(node));
         }
         if (node.nodeName.match(/^H[1-6]$/)) {
             children.push(await createHeadingNode(node));
         }
-        if (node.nodeName === 'UL' || node.nodeName === 'OL') {
+        if (node.nodeName === "UL" || node.nodeName === "OL") {
             const list = await createListNode(node);
             children.push(...list);
         }
-        if (node.nodeName === 'TABLE') {
+        if (node.nodeName === "TABLE") {
             const table = await createTableNode(node);
             children.push(table);
         }
@@ -36,14 +36,8 @@ async function htmlToDocx(html) {
         sections: [{ children: children }],
         numbering: {
             config: [
-                {
-                    reference: 'bullet-points',
-                    levels: [{ level: 0, format: 'bullet', text: '•', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
-                },
-                {
-                    reference: 'numbered-list',
-                    levels: [{ level: 0, format: 'decimal', text: '%1.', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
-                },
+                { reference: "bullet-points", levels: [{ level: 0, format: "bullet", text: "•", style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }] },
+                { reference: "numbered-list", levels: [{ level: 0, format: "decimal", text: "%1.", style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }] },
             ],
         },
     });
@@ -66,14 +60,14 @@ function getTextStyle(node, childNode) {
     const style = {
         color: color ? (0, utils_1.rgbToHex)(color) : undefined,
         size: fontSize ? parseInt(fontSize) * 1.6 : 16,
-        bold: ((_k = node.style) === null || _k === void 0 ? void 0 : _k.fontWeight) === 'bold' || ((_l = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _l === void 0 ? void 0 : _l.fontWeight) === 'bold',
-        italics: ((_m = node.style) === null || _m === void 0 ? void 0 : _m.fontStyle) === 'italic' || ((_o = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _o === void 0 ? void 0 : _o.fontStyle) === 'italic',
-        underline: ((_p = node.style) === null || _p === void 0 ? void 0 : _p.textDecoration) === 'underline' || ((_q = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _q === void 0 ? void 0 : _q.textDecoration) === 'underline',
+        bold: ((_k = node.style) === null || _k === void 0 ? void 0 : _k.fontWeight) === "bold" || ((_l = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _l === void 0 ? void 0 : _l.fontWeight) === "bold",
+        italics: ((_m = node.style) === null || _m === void 0 ? void 0 : _m.fontStyle) === "italic" || ((_o = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _o === void 0 ? void 0 : _o.fontStyle) === "italic",
+        underline: ((_p = node.style) === null || _p === void 0 ? void 0 : _p.textDecoration) === "underline" || ((_q = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _q === void 0 ? void 0 : _q.textDecoration) === "underline",
         font: ((_r = node.style) === null || _r === void 0 ? void 0 : _r.fontFamily) || ((_s = childNode === null || childNode === void 0 ? void 0 : childNode.style) === null || _s === void 0 ? void 0 : _s.fontFamily),
         alignment: (_t = node.style) === null || _t === void 0 ? void 0 : _t.textAlign,
-        indent: { firstLine: parseInt(indent || '0'), start: 0, left: 0 },
+        indent: { firstLine: parseInt(indent || "0"), start: 0, left: 0 },
         spacing: lineHeight
-            ? lineHeight.type === 'multiple'
+            ? lineHeight.type === "multiple"
                 ? { line: lineHeight.value * 240 } // 240 twips = 12pt，作为基准值
                 : { line: lineHeight.value, lineRule: docx_1.LineRuleType.EXACT }
             : undefined,
@@ -93,23 +87,23 @@ async function createParagraphNode(node, paragraph) {
     }
     for (const child of Array.from(node.childNodes)) {
         switch (child.nodeName) {
-            case 'SPAN':
+            case "SPAN":
                 const childStyle = getTextStyle(child, node);
                 paragraph.addChildElement(await createChildNode(child, { ...style, ...childStyle }));
                 break;
-            case 'TEXT':
-                if (child.textContent !== '') {
+            case "TEXT":
+                if (child.textContent !== "") {
                     paragraph.addChildElement(await createTextNode(child, style));
                 }
                 break;
-            case 'STRONG':
+            case "STRONG":
                 paragraph.addChildElement(await createTextNode(child, { ...style, bold: true }));
                 break;
-            case 'IMG':
+            case "IMG":
                 paragraph.addChildElement(await createImageNode(child));
                 break;
-            case 'BR':
-                paragraph.addChildElement(new docx_1.TextRun({ text: '\n' }));
+            case "BR":
+                paragraph.addChildElement(new docx_1.TextRun({ text: "\n" }));
                 break;
             default:
                 paragraph.addChildElement(await createTextNode(child, style));
@@ -125,17 +119,17 @@ async function createParagraphNode(node, paragraph) {
  * @returns
  */
 async function createChildNode(node, style = {}) {
-    let childNode = new docx_1.TextRun({ text: '' });
+    let childNode = new docx_1.TextRun({ text: "" });
     for (const child of Array.from(node.childNodes)) {
         switch (child.nodeName) {
-            case 'STRONG':
+            case "STRONG":
                 childNode = await createChildNode(child, { ...style, bold: true });
                 break;
-            case 'IMG':
+            case "IMG":
                 childNode = await createImageNode(child);
                 break;
-            case 'BR':
-                childNode = new docx_1.TextRun({ text: '\n' });
+            case "BR":
+                childNode = new docx_1.TextRun({ text: "\n" });
                 break;
             default:
                 childNode = await createTextNode(child, style);
@@ -150,28 +144,28 @@ async function createChildNode(node, style = {}) {
  */
 async function createTableNode(node) {
     const rows = [];
-    for (const tr of Array.from(node.querySelectorAll('tr'))) {
+    for (const tr of Array.from(node.querySelectorAll("tr"))) {
         const cells = [];
-        for (const td of Array.from(tr.querySelectorAll('td, th'))) {
+        for (const td of Array.from(tr.querySelectorAll("td, th"))) {
             const cellChildren = [];
             for (const child of Array.from(td.childNodes)) {
-                cellChildren.push(new docx_1.Paragraph({ spacing: { line: 20 * 20 }, indent: { firstLine: 20 }, children: [new docx_1.TextRun({ text: child.textContent || '', size: 18 })] }));
+                cellChildren.push(new docx_1.Paragraph({ spacing: { line: 20 * 20 }, indent: { firstLine: 20 }, children: [new docx_1.TextRun({ text: child.textContent || "", size: 18 })] }));
             }
-            const size = td.getAttribute('width') && td.getAttribute('width') !== 'auto' ? parseInt(td.getAttribute('width')) : 100;
+            const size = td.getAttribute("width") && td.getAttribute("width") !== "auto" ? parseInt(td.getAttribute("width")) : 100;
             // 处理单元格边框
-            const border = { size: 1, color: '#000000', style: 'single' };
+            const border = { size: 1, color: "#000000", style: "single" };
             const cell = new docx_1.TableCell({
                 children: cellChildren,
-                columnSpan: td.getAttribute('colspan') ? parseInt(td.getAttribute('colspan')) : undefined,
-                rowSpan: td.getAttribute('rowspan') ? parseInt(td.getAttribute('rowspan')) : undefined,
-                width: { size, type: 'auto' },
+                columnSpan: td.getAttribute("colspan") ? parseInt(td.getAttribute("colspan")) : undefined,
+                rowSpan: td.getAttribute("rowspan") ? parseInt(td.getAttribute("rowspan")) : undefined,
+                width: { size, type: "auto" },
                 borders: { top: border, bottom: border, left: border, right: border },
             });
             cells.push(cell);
         }
         rows.push(new docx_1.TableRow({ children: cells }));
     }
-    return new docx_1.Table({ rows, width: { size: 100, type: 'pct' } });
+    return new docx_1.Table({ rows, width: { size: 100, type: "pct" } });
 }
 /**
  * 创建列表节点
@@ -181,8 +175,8 @@ async function createTableNode(node) {
 async function createListNode(node) {
     const list = [];
     for (const li of Array.from(node.childNodes)) {
-        if (li.textContent !== '') {
-            const numbering = li.textContent === '\n' ? undefined : { reference: node.nodeName === 'UL' ? 'bullet-points' : 'numbered-list', level: 0 };
+        if (li.textContent !== "") {
+            const numbering = li.textContent === "\n" ? undefined : { reference: node.nodeName === "UL" ? "bullet-points" : "numbered-list", level: 0 };
             const listItem = await createParagraphNode(li, new docx_1.Paragraph({ numbering }));
             list.push(listItem);
         }
@@ -196,28 +190,28 @@ async function createListNode(node) {
  */
 async function createImageNode(imgNode) {
     var _a, _b, _c;
-    const imagePath = (_a = imgNode.getAttribute('src')) !== null && _a !== void 0 ? _a : '';
+    const imagePath = (_a = imgNode.getAttribute("src")) !== null && _a !== void 0 ? _a : "";
     let imageData;
-    if (imagePath.startsWith('data:image')) {
+    if (imagePath.startsWith("data:image")) {
         // 处理base64图片
-        const base64Data = imagePath.split(',')[1];
+        const base64Data = imagePath.split(",")[1];
         // 将base64字符串转换为Uint8Array
-        imageData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        imageData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
     }
     else {
         // 处理普通URL图片
         imageData = await fetch(imagePath)
-            .then(res => res.blob())
-            .then(blob => blob.arrayBuffer())
-            .then(buffer => new Uint8Array(buffer))
-            .catch(e => {
+            .then((res) => res.blob())
+            .then((blob) => blob.arrayBuffer())
+            .then((buffer) => new Uint8Array(buffer))
+            .catch((e) => {
             console.error(e);
             return;
         });
     }
     // 获取图片宽度和高度
-    const width = parseInt((_b = imgNode.getAttribute('width')) !== null && _b !== void 0 ? _b : '650');
-    const height = parseInt((_c = imgNode.getAttribute('height')) !== null && _c !== void 0 ? _c : '280');
+    const width = parseInt((_b = imgNode.getAttribute("width")) !== null && _b !== void 0 ? _b : "650");
+    const height = parseInt((_c = imgNode.getAttribute("height")) !== null && _c !== void 0 ? _c : "280");
     // 处理图片，使用docx库中的ImageRun组件，需要将图片转换为Uint8Array或Blob对象，这里使用base64字符串作为示例，实际使用时需要根据实际情况进行处理
     return new docx_1.ImageRun({ data: imageData, transformation: { width, height } });
 }
@@ -243,7 +237,7 @@ async function createHeadingNode(node) {
  */
 async function createTextNode(node, style = {}) {
     return new docx_1.TextRun({
-        text: node.textContent || '',
+        text: node.textContent || "",
         font: style.font,
         size: style.size,
         color: style.color,
