@@ -1,207 +1,269 @@
-// FindReplace.ts
-import { Extension } from "@tiptap/core";
-import { findReplacePlugin, findReplacePluginKey, FindReplaceAction } from "./findReplacePlugin";
-import { TextSelection } from "@tiptap/pm/state";
-import { nextTick } from "./util";
+import { Document as DocumentDocx, Paragraph, TextRun, HeadingLevel, ImageRun, Packer, TableCell, TableRow, Table, LineRuleType } from 'docx';
+import { type IBorderOptions } from 'docx';
+import { rgbToHex, UnitConverter } from './utils';
 
-declare module "@tiptap/core" {
-  interface Commands<ReturnType> {
-    search: {
-      find: (query: string) => ReturnType;
+/**
+ * 将HTML转换为Word文档
+ * @param {string} html - 输入的HTML内容
+ * @returns {Promise<Blob>} - 返回Word文档的Blob对象
+ */
+async function htmlToDocx(html: string): Promise<Blob> {
+  // 创建DOM解析器
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
 
-      findNext: () => ReturnType;
+  // 创建Word文档
 
-      findPrevious: () => ReturnType;
+  // 遍历HTML节点并转换为Word元素
+  const body = doc.body;
+  const children = [];
 
-      replace: (replacement: string) => ReturnType;
-
-      replaceAll: (replacement: string) => ReturnType;
-
-      closeFindReplace: () => ReturnType;
-
-      openFindReplace: () => ReturnType;
-
-      toggleFindReplace: () => ReturnType;
-    };
+  for (let i = 0; i < body.childNodes.length; i++) {
+    const node = body.childNodes[i] as HTMLElement;
+    if (node.nodeName === 'P') {
+      children.push(await createParagraphNode(node));
+    }
+    if (node.nodeName.match(/^H[1-6]$/)) {
+      children.push(await createHeadingNode(node));
+    }
+    if (node.nodeName === 'UL' || node.nodeName === 'OL') {
+      const list = await createListNode(node);
+      children.push(...list);
+    }
+    if (node.nodeName === 'TABLE') {
+      const table = await createTableNode(node);
+      children.push(table);
+    }
   }
-  interface EditorEvents {
-    // 声明你的自定义事件，格式：[事件名]: 参数类型
-    "findReplace:toggleFindReplace": boolean;
-    // 可以添加多个自定义事件
-    // '自定义事件名2': 参数类型
-  }
+
+  const docx = new DocumentDocx({
+    sections: [{ children: children as any }],
+    numbering: {
+      config: [
+        {
+          reference: 'bullet-points',
+          levels: [{ level: 0, format: 'bullet', text: '•', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
+        },
+        {
+          reference: 'numbered-list',
+          levels: [{ level: 0, format: 'decimal', text: '%1.', style: { paragraph: { indent: { left: 0, firstLine: 0 } } } }],
+        },
+      ],
+    },
+  });
+
+  // 生成Word文档
+  return await Packer.toBlob(docx);
 }
 
-const SearchReplacePlugin = Extension.create({
-  name: "findReplace",
+/**
+ * 获取文本样式
+ * @param {HTMLElement} node - 输入的HTML元素
+ * @param {HTMLElement} [childNode] - 子元素
+ * @returns {{[key:string]:any}} - 返回文本样式对象
+ */
+function getTextStyle(node: HTMLElement, childNode?: HTMLElement): { [key: string]: any } {
+  const indent = node.style?.textIndent; // 默认应该只存在 p 标签上
+  const color = node.style?.color || childNode?.style?.color;
+  const fontSize = childNode?.style?.fontSize || node.style?.fontSize;
 
-  addOptions() {
-    return { openPanel: "Mod-f" };
-  },
+  // 解析行高
+  const lineHeight = node.style?.lineHeight || childNode?.style?.lineHeight ? UnitConverter.parseLineHeight(node.style?.lineHeight || childNode?.style?.lineHeight) : null;
 
-  addProseMirrorPlugins() {
-    return [findReplacePlugin()];
-  },
-  addKeyboardShortcuts() {
-    const keyboard = this.options.openPanel;
-    return {
-      [keyboard]: ({ editor }) => {
-        editor.chain().toggleFindReplace().run();
-        return true;
-      },
-    };
-  },
+  const style = {
+    color: color ? rgbToHex(color) : undefined,
+    size: fontSize ? parseInt(fontSize) * 1.6 : 16,
+    bold: node.style?.fontWeight === 'bold' || childNode?.style?.fontWeight === 'bold',
+    italics: node.style?.fontStyle === 'italic' || childNode?.style?.fontStyle === 'italic',
+    underline: node.style?.textDecoration === 'underline' || childNode?.style?.textDecoration === 'underline',
+    font: node.style?.fontFamily || childNode?.style?.fontFamily,
+    alignment: node.style?.textAlign,
+    indent: { firstLine: parseInt(indent || '0'), start: 0, left: 0 },
+    spacing: lineHeight
+      ? lineHeight.type === 'multiple'
+        ? { line: lineHeight.value * 240 } // 240 twips = 12pt，作为基准值
+        : { line: lineHeight.value, lineRule: LineRuleType.EXACT }
+      : undefined,
+  };
+  return style;
+}
+/**
+ * 创建段落元素
+ * @param {HTMLElement} node - 输入的HTML元素
+ * @param {Paragraph} [paragraph] - 段落对象
+ * @returns {Promise<Paragraph>} - 返回创建的段落对象
+ */
+async function createParagraphNode(node: HTMLElement, paragraph?: Paragraph): Promise<Paragraph> {
+  const style = getTextStyle(node);
+  if (!paragraph) {
+    paragraph = new Paragraph({ alignment: style.alignment as any, indent: style.indent as any, spacing: style.spacing });
+  }
 
-  addCommands() {
-    return {
-      find:
-        (query: string) =>
-        ({ tr, dispatch, state }) => {
-          const pluginState = findReplacePluginKey.getState(state);
+  for (const child of Array.from(node.childNodes)) {
+    switch (child.nodeName) {
+      case 'SPAN':
+        const childStyle = getTextStyle(child as HTMLElement, node);
+        paragraph.addChildElement(await createChildNode(child as HTMLElement, { ...style, ...childStyle }));
+        break;
+      case 'TEXT':
+        if (child.textContent !== '') {
+          paragraph.addChildElement(await createTextNode(child as HTMLElement, style));
+        }
+        break;
+      case 'STRONG':
+        paragraph.addChildElement(await createTextNode(child as HTMLElement, { ...style, bold: true }));
+        break;
+      case 'IMG':
+        paragraph.addChildElement(await createImageNode(child as HTMLImageElement));
+        break;
+      case 'BR':
+        paragraph.addChildElement(new TextRun({ text: '\n' }));
+        break;
+      default:
+        paragraph.addChildElement(await createTextNode(child as HTMLElement, style));
+        break;
+    }
+  }
+  return paragraph;
+}
 
-          if (!pluginState?.isPanelOpen) {
-            return false;
-          }
+/**
+ *
+ * @param node
+ * @param style
+ * @returns
+ */
+async function createChildNode(node: HTMLElement, style: { [key: string]: any } = {}): Promise<TextRun | ImageRun> {
+  let childNode: TextRun | ImageRun = new TextRun({ text: '' });
+  for (const child of Array.from(node.childNodes)) {
+    switch (child.nodeName) {
+      case 'STRONG':
+        childNode = await createChildNode(child as HTMLElement, { ...style, bold: true });
+        break;
+      case 'IMG':
+        childNode = await createImageNode(child as HTMLImageElement);
+        break;
+      case 'BR':
+        childNode = new TextRun({ text: '\n' });
+        break;
+      default:
+        childNode = await createTextNode(child as HTMLElement, style);
+    }
+  }
+  return childNode;
+}
 
-          if (dispatch) {
-            const action: FindReplaceAction = { type: "FIND", query };
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          return true;
-        },
+/**
+ * 创建标题元素
+ * @param {HTMLElement} node - 输入的HTML元素
+ * @returns {Promise<Table>} - 创建的标题对象
+ */
+async function createTableNode(node: HTMLElement): Promise<Table> {
+  const rows = [];
+  for (const tr of Array.from(node.querySelectorAll('tr'))) {
+    const cells = [] as TableCell[];
+    for (const td of Array.from(tr.querySelectorAll('td, th'))) {
+      const cellChildren = [];
+      for (const child of Array.from(td.childNodes)) {
+        cellChildren.push(new Paragraph({ spacing: { line: 20 * 20 }, indent: { firstLine: 20 }, children: [new TextRun({ text: child.textContent || '', size: 18 })] }));
+      }
+      const size = td.getAttribute('width') && td.getAttribute('width') !== 'auto' ? parseInt(td.getAttribute('width') as string) : 100;
+      // 处理单元格边框
+      const border = { size: 1, color: '#000000', style: 'single' } as IBorderOptions;
+      const cell = new TableCell({
+        children: cellChildren as any,
+        columnSpan: td.getAttribute('colspan') ? parseInt(td.getAttribute('colspan') as string) : undefined,
+        rowSpan: td.getAttribute('rowspan') ? parseInt(td.getAttribute('rowspan') as string) : undefined,
+        width: { size, type: 'auto' },
+        borders: { top: border, bottom: border, left: border, right: border },
+      });
+      cells.push(cell);
+    }
+    rows.push(new TableRow({ children: cells }));
+  }
+  return new Table({ rows, width: { size: 100, type: 'pct' } });
+}
 
-      findNext:
-        () =>
-        ({ tr, dispatch, view, state }) => {
-          const pluginState = findReplacePluginKey.getState(state);
+/**
+ * 创建列表节点
+ * @param node - HTML列表元素(ul或ol)
+ * @returns 由段落组成的数组，每个段落代表一个列表项
+ */
+async function createListNode(node: HTMLElement) {
+  const list = [];
+  for (const li of Array.from(node.childNodes)) {
+    if (li.textContent !== '') {
+      const numbering = li.textContent === '\n' ? undefined : { reference: node.nodeName === 'UL' ? 'bullet-points' : 'numbered-list', level: 0 };
+      const listItem = await createParagraphNode(li as HTMLElement, new Paragraph({ numbering }));
+      list.push(listItem);
+    }
+  }
+  return list;
+}
 
-          if (!pluginState?.isPanelOpen) {
-            return false;
-          }
-          if (dispatch) {
-            const action: FindReplaceAction = { type: "NAVIGATE", direction: 1 };
-            // 传递 view 以便在插件中使用
-            tr.setMeta("view", view);
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          return true;
-        },
+/**
+ * 创建文本元素
+ * @param {HTMLElement} imgNode - 输入的HTML元素
+ * @returns {Promise<ImageRun>} - 创建的文本对象
+ */
+async function createImageNode(imgNode: HTMLImageElement): Promise<ImageRun> {
+  const imagePath = imgNode.getAttribute('src') ?? '';
+  let imageData: any;
+  if (imagePath.startsWith('data:image')) {
+    // 处理base64图片
+    const base64Data = imagePath.split(',')[1];
+    // 将base64字符串转换为Uint8Array
+    imageData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  } else {
+    // 处理普通URL图片
+    imageData = await fetch(imagePath)
+      .then(res => res.blob())
+      .then(blob => blob.arrayBuffer())
+      .then(buffer => new Uint8Array(buffer))
+      .catch(e => {
+        console.error(e);
+        return;
+      });
+  }
 
-      findPrevious:
-        () =>
-        ({ tr, dispatch, view, state }) => {
-          const pluginState = findReplacePluginKey.getState(state);
+  // 获取图片宽度和高度
+  const width = parseInt(imgNode.getAttribute('width') ?? '650');
+  const height = parseInt(imgNode.getAttribute('height') ?? '280');
+  // 处理图片，使用docx库中的ImageRun组件，需要将图片转换为Uint8Array或Blob对象，这里使用base64字符串作为示例，实际使用时需要根据实际情况进行处理
+  return new ImageRun({ data: imageData, transformation: { width, height } } as any);
+}
 
-          if (!pluginState?.isPanelOpen) {
-            return false;
-          }
-          if (dispatch) {
-            const action: FindReplaceAction = { type: "NAVIGATE", direction: -1 };
-            tr.setMeta("view", view);
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          return true;
-        },
+/**
+ * 创建标题元素
+ * @param {HTMLElement} node - 输入的HTML元素
+ * @returns {Promise<Paragraph>} - 创建的标题对象
+ */
+async function createHeadingNode(node: HTMLElement): Promise<Paragraph> {
+  const style = getTextStyle(node);
+  const level = parseInt(node.nodeName.substring(1));
+  return new Paragraph({
+    alignment: style.alignment as any,
+    heading: (HeadingLevel.HEADING_1 + (level - 1)) as any,
+    children: [new TextRun({ text: node.textContent as string, bold: true })],
+  });
+}
 
-      replace:
-        (replacement: string) =>
-        ({ state, dispatch }) => {
-          // 1. 从插件状态中获取当前的匹配信息
-          const pluginState = findReplacePluginKey.getState(state);
+/**
+ * 创建文本元素
+ * @param {HTMLElement} node - 输入的HTML元素
+ * @param {TextStyle} [style] - 文本样式
+ * @returns {Promise<TextRun>} - 创建的文本对象
+ */
+async function createTextNode(node: HTMLElement, style: ReturnType<typeof getTextStyle> = {} as ReturnType<typeof getTextStyle>): Promise<TextRun> {
+  return new TextRun({
+    text: node.textContent || '',
+    font: style.font,
+    size: style.size,
+    color: style.color,
+    bold: style.bold,
+    italics: style.italics,
+    underline: style.underline as any,
+  });
+}
 
-          if (!pluginState?.isPanelOpen) {
-            return false;
-          }
-
-          if (!pluginState || pluginState.activeMatchIndex === -1) {
-            return false; // 如果没有激活的匹配项，则不执行任何操作
-          }
-
-          const { from, to } = pluginState.matches[pluginState.activeMatchIndex];
-
-          // 2. 创建一个新的事务来执行文本替换
-          const tr = state.tr;
-          tr.insertText(replacement, from, to);
-
-          // 3. 更新选区，将光标移动到替换后的文本末尾
-          const newSelection = TextSelection.create(tr.doc, to + (replacement.length - (to - from)));
-          tr.setSelection(newSelection);
-
-          // 4. Dispatch 这个事务，这将更新编辑器的文档和视图
-          if (dispatch) {
-            dispatch(tr);
-          }
-
-          // 5. (异步) 替换完成后，立即使用相同的查询词重新查找
-          // 使用 setTimeout 确保在 DOM 更新后再执行，避免竞态条件
-          nextTick(() => this.editor.commands.find(pluginState.query));
-
-          return true;
-        },
-
-      // ... replaceAll 命令也需要类似处理，但逻辑更简单
-      replaceAll:
-        (replacement: string) =>
-        ({ state, dispatch }) => {
-          const pluginState = findReplacePluginKey.getState(state);
-
-          if (!pluginState?.isPanelOpen) {
-            return false;
-          }
-
-          if (!pluginState || pluginState.matches.length === 0) {
-            return false;
-          }
-
-          const tr = state.tr;
-          // 从后往前替换，避免位置偏移
-          const reversedMatches = [...pluginState.matches].reverse();
-          reversedMatches.forEach(({ from, to }) => tr.insertText(replacement, from, to));
-
-          if (dispatch) {
-            dispatch(tr);
-          }
-
-          // 替换全部后，清空查找状态
-          nextTick(() => this.editor.commands.find(""));
-
-          return true;
-        },
-      closeFindReplace:
-        () =>
-        ({ tr, dispatch, editor }) => {
-          if (dispatch) {
-            const action: FindReplaceAction = { type: "CLOSE_PANEL" };
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          nextTick(() => editor.commands.find(""));
-          return true;
-        },
-      openFindReplace:
-        () =>
-        ({ tr, dispatch, editor }) => {
-          if (dispatch) {
-            const action: FindReplaceAction = { type: "OPEN_PANEL" };
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          nextTick(() => editor.commands.find(""));
-          return true;
-        },
-      toggleFindReplace:
-        () =>
-        ({ state, dispatch, tr, editor }) => {
-          const pluginState = findReplacePluginKey.getState(state);
-          if (dispatch) {
-            const action: FindReplaceAction = { type: pluginState?.isPanelOpen ? "CLOSE_PANEL" : "OPEN_PANEL" };
-            tr.setMeta(findReplacePluginKey, { action });
-          }
-          editor.emit("findReplace:toggleFindReplace", !pluginState?.isPanelOpen);
-
-          return true;
-        },
-    };
-  },
-});
-
-export { SearchReplacePlugin, findReplacePluginKey };
-export type { FindReplaceAction };
+export default htmlToDocx;
